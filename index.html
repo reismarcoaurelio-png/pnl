@@ -46,7 +46,37 @@
   </div>
 
   <div class="note">Observação: as restrições <b>x1 ≥ 0</b> e <b>x2 ≥ 0</b> são implícitas.</div>
+ <div class="pane">
+      <div class="small"><strong>Instruções rápidas</strong></div>
+      <ol class="small">
+        <li>Defina tipo, número de variáveis e restrições e clique em <em>Gerar form</em>.</li>
+        <li>Preencha os coeficientes (objetiva e matrizes). Clique em <em>Criar Tabela Simplex</em>.</li>
+        <li>No modo exercício, o aluno deverá escolher coluna e linha pivô e clicar em <em>Aplicar pivot escolhido</em>.</li>
+        <li>O sistema verifica automaticamente se a escolha está correta. Use <em>Passo</em> para avançar com a solução automática quando quiser.</li>
+      </ol>
 
+      <hr />
+      <div>
+        <strong>Modo do professor (pré-configurar via URL)</strong>
+        <p class="small hint">Você pode pré-carregar um problema codificando os coeficientes na query-string. Exemplo (formato JSON codificado em base64): <code>?preset=BASE64</code>. Há um botão para exportar o problema.</p>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button id="exportPreset" class="secondary">Exportar preset</button>
+          <button id="importPreset" class="secondary">Importar preset (colar base64)</button>
+        </div>
+      </div>
+
+      <hr />
+      <div>
+        <strong>Correção automática</strong>
+        <p class="small">Modo exercício: cada golpe (pivot) escolhido pelo aluno é validado pelo critério do Simplex (coluna com custo reduzido mais negativo para Max; para tie usa Bland). A nota mostrada indica quantos passos corretos / passos totais até o ótimo.</p>
+        <div id="grade" class="status" style="margin-top:6px"></div>
+      </div>
+
+      <div class="footer">Como incorporar no Moodle: crie um recurso <em>Page</em> ou <em>Label</em> e cole este arquivo HTML. Alternativamente, coloque o arquivo num repositório e insira como iframe apontando para o HTML.</div>
+    </div>
+  </div>
+  
+  
   <div style="margin-top:12px">
     <button id="start">Iniciar Iterações</button>
     <button id="restart" class="ghost" style="display:none">Reiniciar</button>
