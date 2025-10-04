@@ -28,6 +28,7 @@
 <h1>Simplex KKT - Quadrático Interativo</h1>
 
 <div class="card">
+  <label>Nome do aluno: <input id="studentName" type="text" placeholder="Digite seu nome"></label>
   <div class="small">Informe os coeficientes da função objetivo (maximizar):</div>
   <div style="margin-top:8px">
     <label>coef x1²: <input id="c_x1sq" type="number" step="any" value="-1"></label>
@@ -55,7 +56,11 @@
 <div id="iterationsArea" class="card" style="display:none"></div>
 <div id="feedback" class="status" style="display:none"></div>
 <div id="finalScore"></div>
+<div style="margin-top:12px">
+  <button id="generatePDF" style="display:none">Gerar PDF</button>
+</div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 // util
 function numFrom(id,fallback=0){ const v=parseFloat(document.getElementById(id).value); return Number.isFinite(v)?v:fallback; }
@@ -66,6 +71,7 @@ const varNames=['x1','x2','x3','y1','y2','y3'];
 let base=['x3','y1','y2'];
 let A=[], b=[], autoIterations=[];
 let currentIter=0, score=0, totalChecks=0;
+let studentName='';
 
 // monta problema
 function montarProblema(){
@@ -74,7 +80,7 @@ function montarProblema(){
   const a1=numFrom('a1'), a2=numFrom('a2'), bb=numFrom('b');
   A=[[a1,a2,1,0,0,0],
      [2*c_x1sq,c_x1x2,0,1,0,-a1],
-     [0,2*c_x2sq,0,0,1,-a2]];
+     [c_x1x2,2*c_x2sq,0,0,1,-a2]];
   b=[bb,-c_x1,-c_x2];
   return {A,b};
 }
@@ -168,15 +174,21 @@ function checkIteration(idx){
   if(correct){
     fb.className='status ok'; fb.innerText='✅ Iteração correta!';
     currentIter++; if(currentIter<autoIterations.length) renderStudentIteration(currentIter);
-    else{ const nota=Math.max(1,Math.round(100*score/totalChecks)); fb.innerText=`✅ Todas as iterações preenchidas. Nota final: ${nota}/100`; document.getElementById('finalScore').innerText=`Nota final: ${nota}/100`; }
+    else{
+      const nota=Math.max(1,Math.round(100*score/totalChecks));
+      fb.innerText=`✅ Todas as iterações preenchidas. Nota final: ${nota}/100`;
+      document.getElementById('finalScore').innerText=`Nota final: ${nota}/100`;
+      document.getElementById('generatePDF').style.display='inline-block';
+    }
   }else{ fb.className='status err'; fb.innerText='❌ Iteração incorreta. Revise os valores (use o tableau anterior como referência).'; }
 }
 
 // eventos
 document.getElementById('start').addEventListener('click',()=>{
+  studentName=document.getElementById('studentName').value.trim() || 'Aluno(a) não informado(a)';
   solveAutomatic(); currentIter=0; score=0; totalChecks=0;
   document.getElementById('iterationsArea').innerHTML=''; document.getElementById('feedback').style.display='none';
-  document.getElementById('finalScore').innerText='';
+  document.getElementById('finalScore').innerText=''; document.getElementById('generatePDF').style.display='none';
   renderStudentIteration(currentIter);
 });
 
@@ -184,6 +196,19 @@ document.getElementById('restart').addEventListener('click',()=>{
   autoIterations=[]; A=[]; b=[]; base=['x3','y1','y2']; currentIter=0; score=0; totalChecks=0;
   document.getElementById('iterationsArea').innerHTML=''; document.getElementById('feedback').style.display='none';
   document.getElementById('finalScore').innerText=''; document.getElementById('restart').style.display='none';
+  document.getElementById('generatePDF').style.display='none';
+});
+
+// PDF
+document.getElementById('generatePDF').addEventListener('click',()=>{
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16); doc.text('Desempenho do Aluno', 20, 20);
+  doc.setFontSize(12); doc.text(`Nome: ${studentName}`, 20, 30);
+  doc.text(`Total de iterações: ${autoIterations.length}`, 20, 40);
+  const nota=Math.max(1,Math.round(100*score/totalChecks));
+  doc.text(`Nota final: ${nota}/100`, 20, 50);
+  doc.save(`${studentName.replace(/\s+/g,'_')}_SimplexKKT.pdf`);
 });
 </script>
 </body>
