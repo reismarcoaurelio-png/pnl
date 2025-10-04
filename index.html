@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Simplex KKT - Interativo</title>
+<style>
+  body { font-family: Arial; padding:20px; background:#f7f9fb; }
+  table { border-collapse: collapse; margin-top:10px; }
+  th, td { border:1px solid #999; padding:5px; text-align:center; }
+  th { background:#eee; }
+  input { width:70px; text-align:center; }
+  button { margin:5px; padding:6px 10px; }
+  .status { margin-top:10px; padding:8px; border-radius:5px; }
+  .ok { background:#dcfce7; color:#065f46; }
+  .error { background:#fee2e2; color:#9b1c1c; }
+  .readonly input { background:#f0f0f0; pointer-events:none; }
+</style>
+</head>
+<body>
+
+<h1>Simplex KKT - Quadrático Interativo</h1>
+
+<div id="inputCard" class="card">
+  <div>Informe os coeficientes da função objetivo (max z):</div>
+  <label>coef x1²: <input id="c_x1sq" type="number" step="any" value="-1"></label>
+  <label>coef x2²: <input id="c_x2sq" type="number" step="any" value="-2"></label>
+  <label>coef x1x2: <input id="c_x1x2" type="number" step="any" value="0"></label>
+  <label>coef x1: <input id="c_x1" type="number" step="any" value="6"></label>
+  <label>coef x2: <input id="c_x2" type="number" step="any" value="8"></label>
+
+  <div style="margin-top:10px">Restrição linear (<=):</div>
+  <label>a1 (x1): <input id="a1" type="number" step="any" value="2"></label>
+  <label>a2 (x2): <input id="a2" type="number" step="any" value="4"></label>
+  <label>b: <input id="b" type="number" step="any" value="8"></label>
+</div>
+
+<button id="start">Iniciar Iterações</button>
+<div id="iterationsArea"></div>
+<div class="status" id="feedback">Clique em "Iniciar Iterações".</div>
+<div id="finalScore" style="font-weight:bold; margin-top:15px;"></div>
+
+<script>
+const varNames = ['x1','x2','x3','y1','y2','y3'];
+let base = ['x3','y1','y2'];
+let A=[], b=[];
+let autoIterations=[], currentIter=0;
+let score=0, totalChecks=0;
+
+// --- Montar problema ---
+function montarProblema() {
+  let c_x1sq = parseFloat(document.getElementById('c_x1sq').value);
+  let c_x2sq = parseFloat(document.getElementById('c_x2sq').value);
+  let c_x1   = parseFloat(document.getElementById('c_x1').value);
+  let c_x2   = parseFloat(document.getElementById('c_x2').value);
+  let c_x1x2 = parseFloat(document.getElementById('c_x1x2').value);
+  let a1 = parseFloat(document.getElementById('a1').value);
+  let a2 = parseFloat(document.getElementById('a2').value);
+  let bb = parseFloat(document.getElementById('b').value);
+
+  A = [
+    [a1, a2, 1, 0, 0, 0],
+    [-2*c_x1sq, c_x1x2, 0, 1, 0, -a1],
+    [0, -2*c_x2sq, 0, 0, 1, -a2]
+  ];
+  b = [bb, -c_x1, -c_x2];
+}
+
+// --- Salvar iteração ---
+function saveIter(){
+  autoIterations.push({
+    base:[...base],
+    A:A.map(r=>[...r]),
+    b:[...b]
+  });
+}
+
+// --- Pivotear ---
+function pivot(row,col){
+  let p = A[row][col];
+  for(let j=0;j<A[row].length;j++) A[row][j]/=p;
+  b[row]/=p;
+  for(let i=0;i<A.length;i++){
+    if(i===row) continue;
+    let f=A[i][col];
+    for(let j=0;j<A[i].length;j++) A[i][j]-=f*A[row][j];
+    b[i]-=f*b[row];
+  }
+  base[row]=varNames[col];
+  saveIter();
+}
+
+// --- Entrada/Saída ---
+function enteringVar(){
+  let min=0, row=-1;
+  for(let i=0;i<b.length;i++) if(b[i]<min){min=b[i]; row=i;}
+  if(row===-1) return null;
+  let leave=base[row];
+  let enter=leave.startsWith('x')?'y'+leave.slice(1):'x'+leave.slice(1);
+  let col=varNames.indexOf(enter);
+  return {row,col};
+}
+function isOptimal(){ return b.every(v=>v>=0); }
+
+// --- Resolver automaticamente ---
+function solveAutomatic(){
+  montarProblema();
+  base=['x3','y1','y2'];
+  autoIterations=[];
+  saveIter();
+  while(!isOptimal()){
+    let pv=enteringVar(); if(!pv) break;
+    pivot(pv.row,pv.col);
+  }
+}
+
+// --- Renderizar iteração ---
+function renderStudentIteration(idx){
+  let it=autoIterations[idx];
+  let area=document.getElementById('iterationsArea');
+
+  // manter as anteriores (readonly)
+  if(idx>0){
+    let prev=autoIterations[idx-1];
+    let tblPrev=document.createElement('table');
+    tblPrev.className="readonly";
+    tblPrev.innerHTML="<caption>Iteração "+(idx)+" (anterior)</caption>";
+    let trh=document.createElement('tr');
+    trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>';
+    tblPrev.appendChild(trh);
+    for(let r=0;r<prev.base.length;r++){
+      let tr=document.createElement('tr');
+      tr.innerHTML=`<td><input value="${prev.base[r]}"></td>`+
+        varNames.map((v,j)=>`<td><input value="${prev.A[r][j]}"></td>`).join('')+
+        `<td><input value="${prev.b[r]}"></td>`;
+      tblPrev.appendChild(tr);
+    }
+    area.appendChild(tblPrev);
+  }
+
+  // atual editável
+  let tbl=document.createElement('table');
+  tbl.innerHTML="<caption>Iteração "+(idx+1)+"</caption>";
+  let trh=document.createElement('tr');
+  trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>';
+  tbl.appendChild(trh);
+  for(let r=0;r<it.base.length;r++){
+    let tr=document.createElement('tr');
+    tr.innerHTML=`<td><input id="base_${r}"></td>`+
+      varNames.map((v,j)=>`<td><input id="cell_${r}_${j}"></td>`).join('')+
+      `<td><input id="b_${r}"></td>`;
+    tbl.appendChild(tr);
+  }
+  area.appendChild(tbl);
+
+  let btn=document.createElement('button');
+  btn.innerText="Verificar Iteração";
+  btn.onclick=()=>checkIteration(idx);
+  area.appendChild(btn);
+}
+
+// --- Checar iteração ---
+function checkIteration(idx){
+  let it=autoIterations[idx];
+  let correct=true;
+
+  for(let r=0;r<it.base.length;r++){
+    if(document.getElementById(`base_${r}`).value.trim()!==it.base[r]) correct=false;
+    for(let j=0;j<varNames.length;j++){
+      let val=document.getElementById(`cell_${r}_${j}`).value.trim();
+      val=parseFloat(val.includes('/')?(+val.split('/')[0])/(+val.split('/')[1]):val);
+      if(Math.abs(val-it.A[r][j])>1e-4) correct=false;
+    }
+    let bv=document.getElementById(`b_${r}`).value.trim();
+    bv=parseFloat(bv.includes('/')?(+bv.split('/')[0])/(+bv.split('/')[1]):bv);
+    if(Math.abs(bv-it.b[r])>1e-4) correct=false;
+  }
+
+  totalChecks++;
+  if(correct) score++;
+
+  let fb=document.getElementById('feedback');
+  if(correct){
+    fb.innerText="✅ Iteração correta!";
+    fb.className="status ok";
+
+    // se ainda há próxima, renderizar abaixo
+    currentIter++;
+    if(currentIter<autoIterations.length){
+      renderStudentIteration(currentIter);
+    } else {
+      let nota=Math.round(100*score/totalChecks);
+      fb.innerText="✅ Todas preenchidas.";
+      document.getElementById('finalScore').innerText="Nota final: "+nota+"/100";
+    }
+  } else {
+    fb.innerText="❌ Iteração incorreta. Revise os valores.";
+    fb.className="status error";
+  }
+}
+
+// --- Eventos ---
+document.getElementById('start').onclick=()=>{
+  solveAutomatic();
+  document.getElementById('iterationsArea').innerHTML="";
+  score=0; totalChecks=0; currentIter=0;
+  renderStudentIteration(currentIter);
+};
+</script>
+</body>
+</html>
