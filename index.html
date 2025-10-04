@@ -1,45 +1,210 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<title>Simplex KKT - Interativo Funcional</title>
 <style>
-  .pane { display:flex; gap:16px; }
-  .mainForm { flex:1; }
-  .instructionsRight { width:250px; font-size:13px; color:#334155; }
+  body { font-family: Arial, Helvetica, sans-serif; padding:18px; background:#f6f9fc; color:#0b2545; }
+  h1{margin-bottom:6px;}
+  .card{background:#fff;padding:12px;border-radius:8px;box-shadow:0 6px 18px rgba(11,37,69,0.06);margin-bottom:12px}
+  label{display:inline-block;margin-right:10px}
+  input[type=number], input[type=text]{width:95px;padding:6px;border:1px solid #cbd5e1;border-radius:6px}
+  input.incorrect{border-color:#dc2626;background:#fee2e2}
+  button{padding:8px 12px;border-radius:6px;border:none;background:#2563eb;color:#fff;cursor:pointer;margin-right:6px}
+  button.ghost{background:#64748b}
+  table{border-collapse:collapse;margin-top:8px;width:100%}
+  th,td{border:1px solid #e2e8f0;padding:6px;text-align:center;font-size:13px}
+  caption{font-weight:bold;margin-bottom:6px;text-align:left}
+  .status{margin-top:10px;padding:8px;border-radius:6px}
+  .ok{background:#ecfccb;color:#14532d}
+  .err{background:#fee2e2;color:#7f1d1d}
+  .prevTable input{background:#f3f4f6;border-color:#e2e8f0}
+  .note{font-size:13px;color:#334155;margin-top:8px}
+  #finalScore{font-weight:bold;margin-top:12px}
 </style>
+</head>
+<body>
 
-<div class="pane">
-  <div class="mainForm">
-    <div class="card">
-      <label>Nome do aluno: <input id="studentName" type="text" placeholder="Digite seu nome"></label>
-      <div class="small">Informe os coeficientes da função objetivo (maximizar):</div>
-      <div style="margin-top:8px">
-        <label>coef x1²: <input id="c_x1sq" type="number" step="any" value="-1"></label>
-        <label>coef x2²: <input id="c_x2sq" type="number" step="any" value="-2"></label>
-        <label>coef x1x2: <input id="c_x1x2" type="number" step="any" value="0"></label>
-        <label>coef x1: <input id="c_x1" type="number" step="any" value="6"></label>
-        <label>coef x2: <input id="c_x2" type="number" step="any" value="8"></label>
-      </div>
+<h1>Simplex KKT - Quadrático Interativo</h1>
 
-      <div style="margin-top:10px" class="small">Restrição linear (≤):</div>
-      <div style="margin-top:8px">
-        <label>a1 (x1): <input id="a1" type="number" step="any" value="2"></label>
-        <label>a2 (x2): <input id="a2" type="number" step="any" value="4"></label>
-        <label>b: <input id="b" type="number" step="any" value="8"></label>
-      </div>
-
-      <div class="note">Observação: as restrições <b>x1 ≥ 0</b> e <b>x2 ≥ 0</b> são implícitas.</div>
-
-      <div style="margin-top:12px">
-        <button id="start">Iniciar Iterações</button>
-        <button id="restart" class="ghost" style="display:none">Reiniciar</button>
-      </div>
-    </div>
+<div class="card">
+  <label>Nome do aluno: <input id="studentName" type="text" placeholder="Digite seu nome"></label>
+  <div class="small">Informe os coeficientes da função objetivo (maximizar):</div>
+  <div style="margin-top:8px">
+    <label>coef x1²: <input id="c_x1sq" type="number" step="any" value="-1"></label>
+    <label>coef x2²: <input id="c_x2sq" type="number" step="any" value="-2"></label>
+    <label>coef x1x2: <input id="c_x1x2" type="number" step="any" value="0"></label>
+    <label>coef x1: <input id="c_x1" type="number" step="any" value="6"></label>
+    <label>coef x2: <input id="c_x2" type="number" step="any" value="8"></label>
   </div>
 
-  <div class="instructionsRight">
-    <div class="small"><strong>Instruções rápidas</strong></div>
-    <ol class="small">
-      <li>Preencha os coeficientes (função objetivo e matrizes das restrições). Clique em <em>Iniciar Iterações</em>.</li>
-      <li>No modo exercício, o aluno deverá escolher coluna, linha do pivô e aplicar pivot escolhido.</li>
-      <li>O sistema verifica automaticamente se a escolha está correta. Use <em>Verificar Iteração</em> para avançar com a iteração quando estiver correto.</li>
-      <li>Ao final de todas as iterações, clique em <em>Gerar PDF</em> para gerar o Relatório de Desempenho do Aluno.</li>
-    </ol>
+  <div style="margin-top:10px" class="small">Restrição linear (≤):</div>
+  <div style="margin-top:8px">
+    <label>a1 (x1): <input id="a1" type="number" step="any" value="2"></label>
+    <label>a2 (x2): <input id="a2" type="number" step="any" value="4"></label>
+    <label>b: <input id="b" type="number" step="any" value="8"></label>
+  </div>
+
+  <div class="note">Observação: as restrições <b>x1 ≥ 0</b> e <b>x2 ≥ 0</b> são implícitas.</div>
+
+  <div style="margin-top:12px">
+    <button id="start">Iniciar Iterações</button>
+    <button id="restart" class="ghost" style="display:none">Reiniciar</button>
   </div>
 </div>
+
+<div id="iterationsArea" class="card" style="display:none"></div>
+<div id="feedback" class="status" style="display:none"></div>
+<div id="finalScore"></div>
+<div style="margin-top:12px">
+  <button id="generatePDF" style="display:none">Gerar PDF</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// util
+function numFrom(id,fallback=0){ const v=parseFloat(document.getElementById(id).value); return Number.isFinite(v)?v:fallback; }
+function fmt(x){ return (Math.abs(x)<1e-12)?'0':Number(x).toFixed(6); }
+
+// variáveis globais
+const varNames=['x1','x2','x3','y1','y2','y3'];
+let base=['x3','y1','y2'];
+let A=[], b=[], autoIterations=[];
+let currentIter=0, score=0, totalChecks=0;
+let studentName='';
+
+// monta problema
+function montarProblema(){
+  const c_x1sq=numFrom('c_x1sq'), c_x2sq=numFrom('c_x2sq');
+  const c_x1=numFrom('c_x1'), c_x2=numFrom('c_x2'), c_x1x2=numFrom('c_x1x2');
+  const a1=numFrom('a1'), a2=numFrom('a2'), bb=numFrom('b');
+  A=[[a1,a2,1,0,0,0],
+     [2*c_x1sq,c_x1x2,0,1,0,-a1],
+     [c_x1x2,2*c_x2sq,0,0,1,-a2]];
+  b=[bb,-c_x1,-c_x2];
+  return {A,b};
+}
+
+// iterações
+function saveAutoIteration(){ autoIterations.push({base:[...base],A:A.map(r=>r.slice()),b:b.slice()}); }
+
+function pivot(row,col){
+  const pv=A[row][col]; if(Math.abs(pv)<1e-12)return;
+  for(let j=0;j<A[row].length;j++)A[row][j]/=pv;
+  b[row]/=pv;
+  for(let i=0;i<A.length;i++){if(i===row)continue;
+    const f=A[i][col];
+    for(let j=0;j<A[i].length;j++)A[i][j]-=f*A[row][j];
+    b[i]-=f*b[row];
+  }
+  base[row]=varNames[col];
+  saveAutoIteration();
+}
+
+function enteringVar(){
+  let minVal=0,row=-1;
+  for(let i=0;i<b.length;i++)if(b[i]<minVal){minVal=b[i];row=i;}
+  if(row===-1)return null;
+  const leaveVar=base[row];
+  const enterVar=leaveVar.startsWith('x')?'y'+leaveVar.slice(1):'x'+leaveVar.slice(1);
+  return {row,col:varNames.indexOf(enterVar)};
+}
+
+function isOptimal(){ return b.every(v=>v>=-1e-9); }
+
+function solveAutomatic(){
+  montarProblema();
+  base=['x3','y1','y2']; autoIterations=[]; saveAutoIteration();
+  let safety=0;
+  while(!isOptimal()&&safety<50){ const pv=enteringVar(); if(!pv)break; pivot(pv.row,pv.col); safety++; }
+}
+
+// render
+function renderStudentIteration(idx){
+  const area=document.getElementById('iterationsArea'); area.style.display='block'; area.innerHTML='';
+  if(idx>0){
+    const prev=autoIterations[idx-1];
+    const tblPrev=document.createElement('table'); tblPrev.className='prevTable';
+    tblPrev.innerHTML=`<caption>Iteração ${idx} (anterior - referência)</caption>`;
+    let trh=document.createElement('tr');
+    trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>'; tblPrev.appendChild(trh);
+    prev.base.forEach((bRow,r)=>{
+      let tr=document.createElement('tr');
+      let rowHtml=`<td><input type="text" value="${bRow}" readonly></td>`;
+      for(let j=0;j<varNames.length;j++)rowHtml+=`<td><input type="text" value="${fmt(prev.A[r][j])}" readonly></td>`;
+      rowHtml+=`<td><input type="text" value="${fmt(prev.b[r])}" readonly></td>`; tr.innerHTML=rowHtml; tblPrev.appendChild(tr);
+    });
+    area.appendChild(tblPrev);
+  }
+  const it=autoIterations[idx];
+  const tbl=document.createElement('table'); tbl.innerHTML=`<caption>Iteração ${idx+1} (preencha os valores)</caption>`;
+  let trh=document.createElement('tr'); trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>'; tbl.appendChild(trh);
+  it.base.forEach((bRow,r)=>{
+    let tr=document.createElement('tr'); let rowHtml=`<td><input id="base_${r}" type="text" value=""></td>`;
+    for(let j=0;j<varNames.length;j++)rowHtml+=`<td><input id="cell_${r}_${j}" type="text" value=""></td>`;
+    rowHtml+=`<td><input id="b_${r}" type="text" value=""></td>`; tr.innerHTML=rowHtml; tbl.appendChild(tr);
+  });
+  area.appendChild(tbl);
+  const btn=document.createElement('button'); btn.innerText='Verificar Iteração'; btn.onclick=()=>checkIteration(idx); area.appendChild(btn);
+  document.getElementById('restart').style.display='inline-block';
+}
+
+// verificação
+function checkIteration(idx){
+  const it=autoIterations[idx]; let correct=true;
+  for(let r=0;r<it.base.length;r++){
+    const basEl=document.getElementById(`base_${r}`);
+    const valBase=(basEl.value||'').trim(); basEl.classList.remove('incorrect'); if(valBase!==it.base[r]){basEl.classList.add('incorrect'); correct=false;}
+    for(let j=0;j<varNames.length;j++){
+      const el=document.getElementById(`cell_${r}_${j}`); let raw=el.value.trim(); el.classList.remove('incorrect');
+      let val=NaN;
+      if(raw.includes('/')){ const p=raw.split('/'); val=parseFloat(p[0])/parseFloat(p[1]); }
+      else val=parseFloat(raw.replace(',','.'));
+      if(!Number.isFinite(val) || Math.abs(val-it.A[r][j])>1e-4){ el.classList.add('incorrect'); correct=false; }
+    }
+    const bEl=document.getElementById(`b_${r}`); let rawb=bEl.value.trim(); bEl.classList.remove('incorrect');
+    let bv=NaN;
+    if(rawb.includes('/')){ const p=rawb.split('/'); bv=parseFloat(p[0])/parseFloat(p[1]); }
+    else bv=parseFloat(rawb.replace(',','.'));
+    if(!Number.isFinite(bv)||Math.abs(bv-it.b[r])>1e-4){ bEl.classList.add('incorrect'); correct=false; }
+  }
+  totalChecks++;
+  if(correct)score++;
+  const fb=document.getElementById('feedback'); fb.style.display='block';
+  if(correct){
+    fb.className='status ok'; fb.innerText='✅ Iteração correta!';
+    currentIter++; if(currentIter<autoIterations.length) renderStudentIteration(currentIter);
+    else{
+      const nota=Math.max(1,Math.round(100*score/totalChecks));
+      fb.innerText=`✅ Todas as iterações preenchidas. Nota final: ${nota}/100`;
+      document.getElementById('finalScore').innerText=`Nota final: ${nota}/100`;
+      document.getElementById('generatePDF').style.display='inline-block';
+    }
+  }else{ fb.className='status err'; fb.innerText='❌ Iteração incorreta. Revise os valores (use o tableau anterior como referência).'; }
+}
+
+// eventos
+document.getElementById('start').addEventListener('click',()=>{
+  studentName=document.getElementById('studentName').value.trim() || 'Aluno(a) não informado(a)';
+  solveAutomatic(); currentIter=0; score=0; totalChecks=0;
+  document.getElementById('iterationsArea').innerHTML=''; document.getElementById('feedback').style.display='none';
+  document.getElementById('finalScore').innerText=''; document.getElementById('generatePDF').style.display='none';
+  renderStudentIteration(currentIter);
+});
+
+document.getElementById('restart').addEventListener('click',()=>{
+  autoIterations=[]; A=[]; b=[]; base=['x3','y1','y2']; currentIter=0; score=0; totalChecks=0;
+  document.getElementById('iterationsArea').innerHTML=''; document.getElementById('feedback').style.display='none';
+  document.getElementById('finalScore').innerText=''; document.getElementById('restart').style.display='none';
+  document.getElementById('generatePDF').style.display='none';
+});
+
+// PDF
+document.getElementById('generatePDF').addEventListener('click',()=>{
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16); doc.text('Desempenho do Aluno', 20, 20);
+  doc.setFontSize(12); doc.text(`Nome: ${studentName}`, 20, 30);
+  doc.text(`Total de iterações: ${autoIterations.length}`, 20, 40);
+  const nota=Math.max(1,Math.round(100*score/totalChecks));
+  doc.text(`Nota final: ${nota}/100`, 20, 50
