@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
-<title>Simplex KKT - Interativo (melhorado)</title>
+<title>Simplex KKT - Interativo Funcional</title>
 <style>
   body { font-family: Arial, Helvetica, sans-serif; padding:18px; background:#f6f9fc; color:#0b2545; }
   h1{margin-bottom:6px;}
@@ -57,173 +57,134 @@
 <div id="finalScore"></div>
 
 <script>
-// ---------- util ----------
-function numFrom(id, fallback=0){
-  const v = parseFloat(document.getElementById(id).value);
-  return Number.isFinite(v) ? v : fallback;
-}
-function fmt(x){ return (Math.abs(x) < 1e-12) ? '0' : Number(x).toFixed(6); }
+// util
+function numFrom(id,fallback=0){ const v=parseFloat(document.getElementById(id).value); return Number.isFinite(v)?v:fallback; }
+function fmt(x){ return (Math.abs(x)<1e-12)?'0':Number(x).toFixed(6); }
 
-// ---------- variáveis globais ----------
-const varNames = ['x1','x2','x3','y1','y2','y3'];
-let base = ['x3','y1','y2'];
-let A = [];
-let b = [];
-let autoIterations = [];
-let currentIter = 0;
-let score = 0, totalChecks = 0;
+// variáveis globais
+const varNames=['x1','x2','x3','y1','y2','y3'];
+let base=['x3','y1','y2'];
+let A=[], b=[], autoIterations=[];
+let currentIter=0, score=0, totalChecks=0;
 
-// ---------- monta problema ----------
-function montarProblema() {
-  const c_x1sq = numFrom('c_x1sq');
-  const c_x2sq = numFrom('c_x2sq');
-  const c_x1   = numFrom('c_x1');
-  const c_x2   = numFrom('c_x2');
-  const c_x1x2 = numFrom('c_x1x2');
-  const a1 = numFrom('a1');
-  const a2 = numFrom('a2');
-  const bb = numFrom('b');
-
-  A = [
-    [ a1, a2, 1, 0, 0, 0 ],
-    [ 2 * c_x1sq, c_x1x2, 0, 1, 0, -a1 ],
-    [ 0, 2 * c_x2sq, 0, 0, 1, -a2 ]
-  ];
-
-  b = [ bb, -c_x1, -c_x2 ];
-  return { A, b };
+// monta problema
+function montarProblema(){
+  const c_x1sq=numFrom('c_x1sq'), c_x2sq=numFrom('c_x2sq');
+  const c_x1=numFrom('c_x1'), c_x2=numFrom('c_x2'), c_x1x2=numFrom('c_x1x2');
+  const a1=numFrom('a1'), a2=numFrom('a2'), bb=numFrom('b');
+  A=[[a1,a2,1,0,0,0],
+     [2*c_x1sq,c_x1x2,0,1,0,-a1],
+     [0,2*c_x2sq,0,0,1,-a2]];
+  b=[bb,-c_x1,-c_x2];
+  return {A,b};
 }
 
-// ---------- manipulação de iterações ----------
-function saveAutoIteration(){
-  autoIterations.push({
-    base:[...base],
-    A: A.map(r => r.slice()),
-    b: b.slice()
-  });
-}
+// iterações
+function saveAutoIteration(){ autoIterations.push({base:[...base],A:A.map(r=>r.slice()),b:b.slice()}); }
 
-function pivot(row, col){
-  const pv = A[row][col];
-  if (Math.abs(pv) < 1e-12) return;
-  for (let j=0;j<A[row].length;j++) A[row][j] /= pv;
-  b[row] /= pv;
-  for (let i=0;i<A.length;i++){
-    if (i===row) continue;
-    const factor = A[i][col];
-    for (let j=0;j<A[i].length;j++) A[i][j] -= factor*A[row][j];
-    b[i] -= factor*b[row];
+function pivot(row,col){
+  const pv=A[row][col]; if(Math.abs(pv)<1e-12)return;
+  for(let j=0;j<A[row].length;j++)A[row][j]/=pv;
+  b[row]/=pv;
+  for(let i=0;i<A.length;i++){if(i===row)continue;
+    const f=A[i][col];
+    for(let j=0;j<A[i].length;j++)A[i][j]-=f*A[row][j];
+    b[i]-=f*b[row];
   }
-  base[row] = varNames[col];
+  base[row]=varNames[col];
   saveAutoIteration();
 }
 
 function enteringVar(){
-  let minVal = 0, row = -1;
-  for (let i=0;i<b.length;i++){
-    if (b[i] < minVal){ minVal=b[i]; row=i; }
-  }
-  if (row === -1) return null;
-  const leaveVar = base[row];
-  const enterVar = leaveVar.startsWith('x') ? 'y'+leaveVar.slice(1) : 'x'+leaveVar.slice(1);
-  const col = varNames.indexOf(enterVar);
-  return { row, col };
+  let minVal=0,row=-1;
+  for(let i=0;i<b.length;i++)if(b[i]<minVal){minVal=b[i];row=i;}
+  if(row===-1)return null;
+  const leaveVar=base[row];
+  const enterVar=leaveVar.startsWith('x')?'y'+leaveVar.slice(1):'x'+leaveVar.slice(1);
+  return {row,col:varNames.indexOf(enterVar)};
 }
 
-function isOptimal(){
-  return b.every(v => v >= -1e-9);
-}
+function isOptimal(){ return b.every(v=>v>=-1e-9); }
 
 function solveAutomatic(){
   montarProblema();
-  base = ['x3','y1','y2'];
-  autoIterations = [];
-  saveAutoIteration();
-  let safety = 0;
-  while (!isOptimal() && safety<50){
-    const pv = enteringVar();
-    if(!pv) break;
-    pivot(pv.row,pv.col);
-    safety++;
-  }
+  base=['x3','y1','y2']; autoIterations=[]; saveAutoIteration();
+  let safety=0;
+  while(!isOptimal()&&safety<50){ const pv=enteringVar(); if(!pv)break; pivot(pv.row,pv.col); safety++; }
 }
 
-// ---------- renderização ----------
+// render
 function renderStudentIteration(idx){
-  const area = document.getElementById('iterationsArea');
-  area.style.display = 'block';
-  area.innerHTML = '';
-
+  const area=document.getElementById('iterationsArea'); area.style.display='block'; area.innerHTML='';
   if(idx>0){
-    const prev = autoIterations[idx-1];
-    const tblPrev = document.createElement('table');
-    tblPrev.className='prevTable';
+    const prev=autoIterations[idx-1];
+    const tblPrev=document.createElement('table'); tblPrev.className='prevTable';
     tblPrev.innerHTML=`<caption>Iteração ${idx} (anterior - referência)</caption>`;
     let trh=document.createElement('tr');
-    trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>';
-    tblPrev.appendChild(trh);
+    trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>'; tblPrev.appendChild(trh);
     prev.base.forEach((bRow,r)=>{
       let tr=document.createElement('tr');
       let rowHtml=`<td><input type="text" value="${bRow}" readonly></td>`;
-      for(let j=0;j<varNames.length;j++) rowHtml+=`<td><input type="text" value="${fmt(prev.A[r][j])}" readonly></td>`;
-      rowHtml+=`<td><input type="text" value="${fmt(prev.b[r])}" readonly></td>`;
-      tr.innerHTML=rowHtml; tblPrev.appendChild(tr);
+      for(let j=0;j<varNames.length;j++)rowHtml+=`<td><input type="text" value="${fmt(prev.A[r][j])}" readonly></td>`;
+      rowHtml+=`<td><input type="text" value="${fmt(prev.b[r])}" readonly></td>`; tr.innerHTML=rowHtml; tblPrev.appendChild(tr);
     });
     area.appendChild(tblPrev);
   }
-
-  const it = autoIterations[idx];
-  const tbl = document.createElement('table');
-  tbl.innerHTML=`<caption>Iteração ${idx+1} (preencha os valores)</caption>`;
-  let trh=document.createElement('tr');
-  trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>';
-  tbl.appendChild(trh);
-
+  const it=autoIterations[idx];
+  const tbl=document.createElement('table'); tbl.innerHTML=`<caption>Iteração ${idx+1} (preencha os valores)</caption>`;
+  let trh=document.createElement('tr'); trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>'; tbl.appendChild(trh);
   it.base.forEach((bRow,r)=>{
-    let tr=document.createElement('tr');
-    let rowHtml=`<td><input id="base_${r}" type="text" value=""></td>`;
-    for(let j=0;j<varNames.length;j++) rowHtml+=`<td><input id="cell_${r}_${j}" type="text" value=""></td>`;
-    rowHtml+=`<td><input id="b_${r}" type="text" value=""></td>`;
-    tr.innerHTML=rowHtml;
-    tbl.appendChild(tr);
+    let tr=document.createElement('tr'); let rowHtml=`<td><input id="base_${r}" type="text" value=""></td>`;
+    for(let j=0;j<varNames.length;j++)rowHtml+=`<td><input id="cell_${r}_${j}" type="text" value=""></td>`;
+    rowHtml+=`<td><input id="b_${r}" type="text" value=""></td>`; tr.innerHTML=rowHtml; tbl.appendChild(tr);
   });
   area.appendChild(tbl);
-
-  const btn = document.createElement('button');
-  btn.innerText='Verificar Iteração';
-  btn.onclick=()=>checkIteration(idx);
-  area.appendChild(btn);
+  const btn=document.createElement('button'); btn.innerText='Verificar Iteração'; btn.onclick=()=>checkIteration(idx); area.appendChild(btn);
   document.getElementById('restart').style.display='inline-block';
 }
 
-// ---------- verificação ----------
+// verificação
 function checkIteration(idx){
-  const it = autoIterations[idx];
-  let correct = true;
-
+  const it=autoIterations[idx]; let correct=true;
   for(let r=0;r<it.base.length;r++){
-    const basEl = document.getElementById(`base_${r}`);
-    const valBase = (basEl.value||'').trim();
-    basEl.classList.remove('incorrect');
-    if(valBase!==it.base[r]){ basEl.classList.add('incorrect'); correct=false; }
-
+    const basEl=document.getElementById(`base_${r}`);
+    const valBase=(basEl.value||'').trim(); basEl.classList.remove('incorrect'); if(valBase!==it.base[r]){basEl.classList.add('incorrect'); correct=false;}
     for(let j=0;j<varNames.length;j++){
-      const el=document.getElementById(`cell_${r}_${j}`);
-      let raw=el.value.trim();
-      el.classList.remove('incorrect');
+      const el=document.getElementById(`cell_${r}_${j}`); let raw=el.value.trim(); el.classList.remove('incorrect');
       let val=NaN;
-      if(raw.includes('/')){
-        const p=raw.split('/'); val=parseFloat(p[0])/parseFloat(p[1]);
-      } else val=parseFloat(raw.replace(',','.'));
+      if(raw.includes('/')){ const p=raw.split('/'); val=parseFloat(p[0])/parseFloat(p[1]); }
+      else val=parseFloat(raw.replace(',','.'));
       if(!Number.isFinite(val) || Math.abs(val-it.A[r][j])>1e-4){ el.classList.add('incorrect'); correct=false; }
     }
-
-    const bEl=document.getElementById(`b_${r}`);
-    let rawb=bEl.value.trim();
-    bEl.classList.remove('incorrect');
+    const bEl=document.getElementById(`b_${r}`); let rawb=bEl.value.trim(); bEl.classList.remove('incorrect');
     let bv=NaN;
-    if(rawb.includes('/')){
-      const p=rawb.split('/'); bv=parseFloat(p[0])/parseFloat(p[1]);
-    } else bv=parseFloat(rawb.replace(',','.'));
-    if(!Number.isFinite(bv) || Math.abs(bv-it.b[r])>1e-4){ bEl.classList.add('incorrect'); correct=false; }
- 
+    if(rawb.includes('/')){ const p=rawb.split('/'); bv=parseFloat(p[0])/parseFloat(p[1]); }
+    else bv=parseFloat(rawb.replace(',','.'));
+    if(!Number.isFinite(bv)||Math.abs(bv-it.b[r])>1e-4){ bEl.classList.add('incorrect'); correct=false; }
+  }
+  totalChecks++;
+  if(correct)score++;
+  const fb=document.getElementById('feedback'); fb.style.display='block';
+  if(correct){
+    fb.className='status ok'; fb.innerText='✅ Iteração correta!';
+    currentIter++; if(currentIter<autoIterations.length) renderStudentIteration(currentIter);
+    else{ const nota=Math.max(1,Math.round(100*score/totalChecks)); fb.innerText=`✅ Todas as iterações preenchidas. Nota final: ${nota}/100`; document.getElementById('finalScore').innerText=`Nota final: ${nota}/100`; }
+  }else{ fb.className='status err'; fb.innerText='❌ Iteração incorreta. Revise os valores (use o tableau anterior como referência).'; }
+}
+
+// eventos
+document.getElementById('start').addEventListener('click',()=>{
+  solveAutomatic(); currentIter=0; score=0; totalChecks=0;
+  document.getElementById('iterationsArea').innerHTML=''; document.getElementById('feedback').style.display='none';
+  document.getElementById('finalScore').innerText='';
+  renderStudentIteration(currentIter);
+});
+
+document.getElementById('restart').addEventListener('click',()=>{
+  autoIterations=[]; A=[]; b=[]; base=['x3','y1','y2']; currentIter=0; score=0; totalChecks=0;
+  document.getElementById('iterationsArea').innerHTML=''; document.getElementById('feedback').style.display='none';
+  document.getElementById('finalScore').innerText=''; document.getElementById('restart').style.display='none';
+});
+</script>
+</body>
+</html>
