@@ -1,31 +1,35 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Simplex KKT Interativo</title>
+<meta charset="utf-8"/>
+<title>Simplex KKT - Interativo (melhorado)</title>
 <style>
-body { font-family: Arial, sans-serif; padding:20px; background:#f7f9fb; }
-table { border-collapse: collapse; margin-top:10px; }
-th, td { border:1px solid #999; padding:5px; text-align:center; }
-th { background:#eee; }
-input { width:60px; text-align:center; }
-button { padding:6px 10px; margin:5px; }
-.status { margin-top:10px; padding:8px; border-radius:5px; }
-.ok { background:#dcfce7; color:#065f46; }
-.error { background:#fee2e2; color:#9b1c1c; }
-.small { font-size: 0.9em; color:#333; }
-.card { background:#fff; padding:10px; border-radius:5px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+  body { font-family: Arial, Helvetica, sans-serif; padding:18px; background:#f6f9fc; color:#0b2545; }
+  h1{margin-bottom:6px;}
+  .card{background:#fff;padding:12px;border-radius:8px;box-shadow:0 6px 18px rgba(11,37,69,0.06);margin-bottom:12px}
+  label{display:inline-block;margin-right:10px}
+  input[type=number], input[type=text]{width:95px;padding:6px;border:1px solid #cbd5e1;border-radius:6px}
+  input.incorrect{border-color:#dc2626;background:#fee2e2}
+  button{padding:8px 12px;border-radius:6px;border:none;background:#2563eb;color:#fff;cursor:pointer;margin-right:6px}
+  button.ghost{background:#64748b}
+  table{border-collapse:collapse;margin-top:8px;width:100%}
+  th,td{border:1px solid #e2e8f0;padding:6px;text-align:center;font-size:13px}
+  caption{font-weight:bold;margin-bottom:6px;text-align:left}
+  .status{margin-top:10px;padding:8px;border-radius:6px}
+  .ok{background:#ecfccb;color:#14532d}
+  .err{background:#fee2e2;color:#7f1d1d}
+  .prevTable input{background:#f3f4f6;border-color:#e2e8f0}
+  .note{font-size:13px;color:#334155;margin-top:8px}
+  #finalScore{font-weight:bold;margin-top:12px}
 </style>
 </head>
 <body>
 
 <h1>Simplex KKT - Quadrático Interativo</h1>
 
-<label>Nome do aluno: <input id="studentName" type="text"></label>
-
-<div id="inputCard" class="card" style="margin-top:10px;">
+<div class="card">
   <div class="small">Informe os coeficientes da função objetivo (maximizar):</div>
-  <div class="row" style="margin-top:8px">
+  <div style="margin-top:8px">
     <label>coef x1²: <input id="c_x1sq" type="number" step="any" value="-1"></label>
     <label>coef x2²: <input id="c_x2sq" type="number" step="any" value="-2"></label>
     <label>coef x1x2: <input id="c_x1x2" type="number" step="any" value="0"></label>
@@ -33,74 +37,81 @@ button { padding:6px 10px; margin:5px; }
     <label>coef x2: <input id="c_x2" type="number" step="any" value="8"></label>
   </div>
 
-  <div style="margin-top:10px" class="small">Restrição linear (<=):</div>
-  <div class="row" style="margin-top:8px">
+  <div style="margin-top:10px" class="small">Restrição linear (≤):</div>
+  <div style="margin-top:8px">
     <label>a1 (x1): <input id="a1" type="number" step="any" value="2"></label>
     <label>a2 (x2): <input id="a2" type="number" step="any" value="4"></label>
     <label>b: <input id="b" type="number" step="any" value="8"></label>
   </div>
 
-  <div style="margin-top:12px" class="small">
-    Observação: as restrições x1≥0, x2≥0 são implícitas. O aluno só altera os coeficientes acima.
+  <div class="note">Observação: as restrições <b>x1 ≥ 0</b> e <b>x2 ≥ 0</b> são implícitas.</div>
+
+  <div style="margin-top:12px">
+    <button id="start">Iniciar Iterações</button>
+    <button id="restart" class="ghost" style="display:none">Reiniciar</button>
   </div>
 </div>
 
-<br>
-<button id="start">Iniciar Iterações</button>
-
-<div id="previousArea"></div>
-<div id="iterationsArea"></div>
-<div class="status" id="feedback">Clique em "Iniciar Iterações" para preencher passo a passo.</div>
-<div class="status" id="scoreStatus"></div>
+<div id="iterationsArea" class="card" style="display:none"></div>
+<div id="feedback" class="status" style="display:none"></div>
+<div id="finalScore"></div>
 
 <script>
+// ---------- util ----------
+function numFrom(id, fallback=0){
+  const v = parseFloat(document.getElementById(id).value);
+  return Number.isFinite(v) ? v : fallback;
+}
+function fmt(x){ return (Math.abs(x) < 1e-12) ? '0' : Number(x).toFixed(6); }
+
+// ---------- variáveis globais ----------
 const varNames = ['x1','x2','x3','y1','y2','y3'];
+let base = ['x3','y1','y2'];
+let A = [];
+let b = [];
 let autoIterations = [];
 let currentIter = 0;
-let base=[], A=[], b=[];
-let studentName = "";
-let score = 100;
+let score = 0, totalChecks = 0;
 
-// Monta problema a partir dos inputs
+// ---------- monta problema ----------
 function montarProblema() {
-  let c_x1sq = parseFloat(document.getElementById('c_x1sq').value);
-  let c_x2sq = parseFloat(document.getElementById('c_x2sq').value);
-  let c_x1   = parseFloat(document.getElementById('c_x1').value);
-  let c_x2   = parseFloat(document.getElementById('c_x2').value);
-  let c_x1x2 = parseFloat(document.getElementById('c_x1x2').value);
+  const c_x1sq = numFrom('c_x1sq');
+  const c_x2sq = numFrom('c_x2sq');
+  const c_x1   = numFrom('c_x1');
+  const c_x2   = numFrom('c_x2');
+  const c_x1x2 = numFrom('c_x1x2');
+  const a1 = numFrom('a1');
+  const a2 = numFrom('a2');
+  const bb = numFrom('b');
 
-  let a1 = parseFloat(document.getElementById('a1').value);
-  let a2 = parseFloat(document.getElementById('a2').value);
-  let bb = parseFloat(document.getElementById('b').value);
-
-  let A_local = [
-    [a1, a2, 1, 0, 0, 0],
-    [2* c_x1sq, c_x1x2, 0, 1, 0, -a1],
-    [0, 2*c_x2sq, 0, 0, 1, -a2]
+  A = [
+    [ a1, a2, 1, 0, 0, 0 ],
+    [ 2 * c_x1sq, c_x1x2, 0, 1, 0, -a1 ],
+    [ 0, 2 * c_x2sq, 0, 0, 1, -a2 ]
   ];
 
-  let b_local = [bb, -c_x1, -c_x2];
-
-  return {A:A_local, b:b_local};
+  b = [ bb, -c_x1, -c_x2 ];
+  return { A, b };
 }
 
-// Pivotamento e lógica Simplex
+// ---------- manipulação de iterações ----------
 function saveAutoIteration(){
   autoIterations.push({
     base:[...base],
-    A:A.map(r=>[...r]),
-    b:[...b]
+    A: A.map(r => r.slice()),
+    b: b.slice()
   });
 }
 
-function pivot(row,col){
-  const pivotVal = A[row][col];
-  for(let j=0;j<A[row].length;j++) A[row][j]/=pivotVal;
-  b[row]/=pivotVal;
-  for(let i=0;i<A.length;i++){
-    if(i===row) continue;
+function pivot(row, col){
+  const pv = A[row][col];
+  if (Math.abs(pv) < 1e-12) return;
+  for (let j=0;j<A[row].length;j++) A[row][j] /= pv;
+  b[row] /= pv;
+  for (let i=0;i<A.length;i++){
+    if (i===row) continue;
     const factor = A[i][col];
-    for(let j=0;j<A[i].length;j++) A[i][j] -= factor*A[row][j];
+    for (let j=0;j<A[i].length;j++) A[i][j] -= factor*A[row][j];
     b[i] -= factor*b[row];
   }
   base[row] = varNames[col];
@@ -108,107 +119,111 @@ function pivot(row,col){
 }
 
 function enteringVar(){
-  let minVal=0,row=-1;
-  for(let i=0;i<b.length;i++){
-    if(b[i]<minVal){ minVal=b[i]; row=i;}
+  let minVal = 0, row = -1;
+  for (let i=0;i<b.length;i++){
+    if (b[i] < minVal){ minVal=b[i]; row=i; }
   }
-  if(row===-1) return null;
+  if (row === -1) return null;
   const leaveVar = base[row];
   const enterVar = leaveVar.startsWith('x') ? 'y'+leaveVar.slice(1) : 'x'+leaveVar.slice(1);
   const col = varNames.indexOf(enterVar);
-  return {row,col};
+  return { row, col };
 }
 
-function isOptimal(){ return b.every(v=>v>=0); }
+function isOptimal(){
+  return b.every(v => v >= -1e-9);
+}
 
-function solveAutomatic(problem){
-  base=['x3','y1','y2'];
-  A=problem.A.map(r=>[...r]);
-  b=problem.b.map(v=>v);
-  autoIterations=[];
+function solveAutomatic(){
+  montarProblema();
+  base = ['x3','y1','y2'];
+  autoIterations = [];
   saveAutoIteration();
-  while(!isOptimal()){
+  let safety = 0;
+  while (!isOptimal() && safety<50){
     const pv = enteringVar();
     if(!pv) break;
     pivot(pv.row,pv.col);
+    safety++;
   }
 }
 
-// Renderização
-function renderStudentIteration(iterIdx){
-  const prevArea = document.getElementById('previousArea');
+// ---------- renderização ----------
+function renderStudentIteration(idx){
   const area = document.getElementById('iterationsArea');
+  area.style.display = 'block';
+  area.innerHTML = '';
 
-  // Iteração anterior visível
-  if(iterIdx>0){
-    const prev = autoIterations[iterIdx-1];
-    let html = `<h4>Iteração ${iterIdx} (anterior para referência)</h4><table><tr><th>Base</th>${varNames.map(v=>`<th>${v}</th>`).join('')}<th>b</th></tr>`;
-    for(let r=0;r<prev.base.length;r++){
-      html += `<tr><td>${prev.base[r]}</td>`;
-      for(let j=0;j<varNames.length;j++) html += `<td>${prev.A[r][j].toFixed(2)}</td>`;
-      html += `<td>${prev.b[r].toFixed(2)}</td></tr>`;
-    }
-    html += "</table>";
-    prevArea.innerHTML = html;
+  if(idx>0){
+    const prev = autoIterations[idx-1];
+    const tblPrev = document.createElement('table');
+    tblPrev.className='prevTable';
+    tblPrev.innerHTML=`<caption>Iteração ${idx} (anterior - referência)</caption>`;
+    let trh=document.createElement('tr');
+    trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>';
+    tblPrev.appendChild(trh);
+    prev.base.forEach((bRow,r)=>{
+      let tr=document.createElement('tr');
+      let rowHtml=`<td><input type="text" value="${bRow}" readonly></td>`;
+      for(let j=0;j<varNames.length;j++) rowHtml+=`<td><input type="text" value="${fmt(prev.A[r][j])}" readonly></td>`;
+      rowHtml+=`<td><input type="text" value="${fmt(prev.b[r])}" readonly></td>`;
+      tr.innerHTML=rowHtml; tblPrev.appendChild(tr);
+    });
+    area.appendChild(tblPrev);
   }
 
-  // Limpa area atual sem apagar a anterior
-  area.innerHTML = `<h4>Preencha a iteração ${iterIdx+1}:</h4><table><tr><th>Base</th>${varNames.map(v=>`<th>${v}</th>`).join('')}<th>b</th></tr>`;
-  for(let r=0;r<base.length;r++){
-    area.innerHTML += `<tr>
-      <td><input type="text" id="base_${r}" placeholder="${base[r]}"></td>
-      ${varNames.map((v,j)=>`<td><input type="number" step="0.01" id="cell_${r}_${j}"></td>`).join('')}
-      <td><input type="number" step="0.01" id="b_${r}"></td>
-    </tr>`;
-  }
-  area.innerHTML += `<br><button id="checkBtn">Verificar</button>`;
-  
-  document.getElementById("checkBtn").addEventListener('click', checkIteration);
-  document.getElementById("scoreStatus").innerText = `Pontuação: ${score}`;
+  const it = autoIterations[idx];
+  const tbl = document.createElement('table');
+  tbl.innerHTML=`<caption>Iteração ${idx+1} (preencha os valores)</caption>`;
+  let trh=document.createElement('tr');
+  trh.innerHTML='<th>Base</th>'+varNames.map(v=>`<th>${v}</th>`).join('')+'<th>b</th>';
+  tbl.appendChild(trh);
+
+  it.base.forEach((bRow,r)=>{
+    let tr=document.createElement('tr');
+    let rowHtml=`<td><input id="base_${r}" type="text" value=""></td>`;
+    for(let j=0;j<varNames.length;j++) rowHtml+=`<td><input id="cell_${r}_${j}" type="text" value=""></td>`;
+    rowHtml+=`<td><input id="b_${r}" type="text" value=""></td>`;
+    tr.innerHTML=rowHtml;
+    tbl.appendChild(tr);
+  });
+  area.appendChild(tbl);
+
+  const btn = document.createElement('button');
+  btn.innerText='Verificar Iteração';
+  btn.onclick=()=>checkIteration(idx);
+  area.appendChild(btn);
+  document.getElementById('restart').style.display='inline-block';
 }
 
-// Verificação e nota
-function checkIteration(){
-  const it = autoIterations[currentIter];
+// ---------- verificação ----------
+function checkIteration(idx){
+  const it = autoIterations[idx];
   let correct = true;
 
   for(let r=0;r<it.base.length;r++){
-    let studentBase = document.getElementById(`base_${r}`).value.trim();
-    if(studentBase!==it.base[r]) correct=false;
+    const basEl = document.getElementById(`base_${r}`);
+    const valBase = (basEl.value||'').trim();
+    basEl.classList.remove('incorrect');
+    if(valBase!==it.base[r]){ basEl.classList.add('incorrect'); correct=false; }
+
     for(let j=0;j<varNames.length;j++){
-      let val = parseFloat(document.getElementById(`cell_${r}_${j}`).value);
-      if(Math.abs(val - it.A[r][j])>1e-4) correct=false;
+      const el=document.getElementById(`cell_${r}_${j}`);
+      let raw=el.value.trim();
+      el.classList.remove('incorrect');
+      let val=NaN;
+      if(raw.includes('/')){
+        const p=raw.split('/'); val=parseFloat(p[0])/parseFloat(p[1]);
+      } else val=parseFloat(raw.replace(',','.'));
+      if(!Number.isFinite(val) || Math.abs(val-it.A[r][j])>1e-4){ el.classList.add('incorrect'); correct=false; }
     }
-    let bv = parseFloat(document.getElementById(`b_${r}`).value);
-    if(Math.abs(bv - it.b[r])>1e-4) correct=false;
-  }
 
-  if(correct){
-    document.getElementById('feedback').innerText = "✅ Iteração correta!";
-    document.getElementById('feedback').className = "status ok";
-    currentIter++;
-    if(currentIter<autoIterations.length){
-      renderStudentIteration(currentIter);
-    } else {
-      document.getElementById('feedback').innerText += ` 🎉 Todas as iterações completadas. Pontuação final: ${score}`;
-    }
-  } else {
-    score = Math.max(0, score-5);
-    document.getElementById('feedback').innerText = "❌ Iteração incorreta, tente novamente!";
-    document.getElementById('feedback').className = "status error";
-    document.getElementById("scoreStatus").innerText = `Pontuação: ${score}`;
-  }
-}
-
-document.getElementById('start').addEventListener('click', ()=>{
-  studentName = document.getElementById('studentName').value.trim() || 'Aluno';
-  const problem = montarProblema();
-  solveAutomatic(problem);
-  currentIter=0;
-  score = 100;
-  renderStudentIteration(currentIter);
-});
-
-</script>
-</body>
-</html>
+    const bEl=document.getElementById(`b_${r}`);
+    let rawb=bEl.value.trim();
+    bEl.classList.remove('incorrect');
+    let bv=NaN;
+    if(rawb.includes('/')){
+      const p=rawb.split('/'); bv=parseFloat(p[0])/parseFloat(p[1]);
+    } else bv=parseFloat(rawb.replace(',','.'));
+    if(!Number.isFinite(bv) || Math.abs(bv-it.b[r])>1e-4){ bEl.classList.add('incorrect'); correct=false; }
+ 
